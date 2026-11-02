@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { EggPickResult, JackpotWheelResult, LineWin, ReelGrid, WinCategory } from '@/types/game';
 import { STARTING_BALANCE } from '@/config/game';
+import { createGameApi } from '@/services/api';
+
+const api = createGameApi();
 
 export type GamePhase =
   | 'IDLE'
@@ -60,13 +63,14 @@ interface GameState {
   setFreeSpinsRemaining: (n: number) => void;
   setBonusTotal: (n: number) => void;
   setJackpotValue: (n: number) => void;
+  spinJackpotWheel: () => Promise<void>;
   setJackpotWheelResult: (r: JackpotWheelResult) => void;
   dismissJackpot: () => void;
   setError: (msg: string | null) => void;
   reset: () => void;
 }
 
-export const useGameStore = create<GameState>((set) => ({
+export const useGameStore = create<GameState>((set, get) => ({
   balance: STARTING_BALANCE,
   bet: 50,
   betIndex: 2,
@@ -107,8 +111,17 @@ export const useGameStore = create<GameState>((set) => ({
   setFreeSpinsRemaining: (n) => set({ freeSpinsRemaining: n }),
   setBonusTotal: (n) => set({ bonusTotal: n }),
   setJackpotValue: (n) => set({ jackpotValue: n }),
+  spinJackpotWheel: async () => {
+    set({ jackpotPhase: 'WHEEL_SPINNING' });
+    try {
+      const result = await api.spinJackpotWheel();
+      set({ jackpotWheelResult: result, jackpotPhase: 'WHEEL_RESULT', balance: result.balance, jackpotValue: 50000 });
+    } catch {
+      set({ jackpotPhase: 'WHEEL_RESULT' });
+    }
+  },
   setJackpotWheelResult: (r) => set({ jackpotWheelResult: r, jackpotPhase: 'WHEEL_RESULT' }),
-  dismissJackpot: () => set({ jackpotPhase: 'NONE', jackpotWheelResult: null }),
+  dismissJackpot: () => set({ jackpotPhase: 'NONE', jackpotWheelResult: null, phase: 'IDLE' }),
   setError: (msg) => set({ error: msg, phase: 'ERROR' }),
   reset: () => set({
     balance: STARTING_BALANCE,
